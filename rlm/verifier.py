@@ -85,3 +85,27 @@ class ExactMatchVerifier(Verifier):
         if predicted is None:
             return False
         return self._normalize(predicted) == self._normalize(expected)
+
+
+"""Verifica respuestas numéricas de los problemas de crédito al consumo
+    (cuota francesa, ratio de endeudamiento, coste total del crédito, TAE).
+
+    Los cuatro tipos se verifican igual: se normaliza el número extraído de
+    la respuesta del modelo y el guardado como correcto, se redondean ambos
+    a `decimals` posiciones decimales y se comparan como strings."""
+class CreditoVerifier(Verifier): 
+    name = "credito"
+
+    def __init__(self, decimals= 2):
+        self.decimals = decimals
+
+    def _round(self,value:str) -> str: 
+        normalized = normalize_number(value)
+        rounded = round(float(normalized), self.decimals)
+        rounded = 0.0 if rounded == 0 else rounded
+        return f"{rounded:.{self.decimals}}"
+
+    def is_correct(self, predicted: str, expected: str) -> bool:
+        predicted_rounded = self._round(predicted)
+        expected_rounded = self._round(expected)
+        return predicted_rounded == expected_rounded

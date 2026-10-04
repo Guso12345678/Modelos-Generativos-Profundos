@@ -23,10 +23,12 @@ Here you add what makes it *yours*:
 from __future__ import annotations
 
 import argparse
+import re
 from collections.abc import Sequence
 
 from rlm.data import load_domain_dataset, load_gsm8k
-from rlm.rewards import _completion_text, accuracy_reward, format_reward
+from rlm.rewards import FORMAT_PATTERN, NUMBER_PATTERN, _completion_text, accuracy_reward, format_reward
+STRICT_ANSWER_PATTERN = re.compile(r"^-?\d+\.\d{2}$")
 
 
 def domain_reward(prompts: Sequence, completions: Sequence, **kwargs) -> list[float]:
@@ -42,8 +44,28 @@ def domain_reward(prompts: Sequence, completions: Sequence, **kwargs) -> list[fl
 
     Until you implement it, it returns 0.0 everywhere so the script still runs.
     """
+    """Recompensa propia del dominio de crédito al consumo: premia que el
+    modelo DERIVE la respuesta en vez de alucinarla, y que la presente en el
+    formato limpio (2 decimales, sin símbolos)"""
     texts = [_completion_text(c) for c in completions]
-    return [0.0 for _ in texts]
+    rewards = []
+    for text in texts:
+        match = FORMAT_PATTERN.match(text)
+        if match is None:
+            rewards.append(0.0)
+            continue
+
+        think = match.group("think")
+        answer = match.group("answer").strip()
+
+        reward = 0.0
+        distinct_numbers = len(set(NUMBER_PATTERN.findall(think)))
+        reward += 0.5 * min(distinct_numbers / MIN_CALC_NUMBERS, 1.0)
+        if STRICT_ANSWER_PATTERN.match(answer):
+            reward += 0.5
+
+        rewards.append(reward)
+    return rewards
 
 
 def train(args: argparse.Namespace) -> None:
@@ -79,7 +101,7 @@ def train(args: argparse.Namespace) -> None:
         log_completions=True,
         num_completions_to_print=2,
         model_init_kwargs={"dtype": torch.bfloat16 if device == "cuda" else torch.float32},
-        # Tu turno: reward_weights=[1.0, 2.0, 0.5] lets you weight format / accuracy / domain.
+        reward_weights=[1.0, 2.0, 0.5] #lets you weight format / accuracy / domain.
     )
 
     if args.init_adapter:

@@ -20,6 +20,7 @@ runs/
 wandb/
 .cache/
 hf_cache/
+rlm/data/*.jsonl
 
 # Resultados y gráficas grandes
 reports/*.png
